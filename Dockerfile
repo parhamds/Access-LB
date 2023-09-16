@@ -12,7 +12,7 @@ RUN go mod download
 COPY *.go ./
 
 # Build
-RUN go build -o exitlb
+RUN go build -o enterlb
 
 # Optional:
 # To bind to a TCP port, runtime parameters must be supplied to the docker command.
