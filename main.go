@@ -151,12 +151,12 @@ func execAddRule(gwip, ueip string) error {
 	if err != nil {
 		return err
 	}
-	m32Rule := fmt.Sprint("\"0x38&0xffffffff=0x", hexIP, "\"")
+	m32Rule := fmt.Sprint("\"56&0xffffffff=0x", hexIP, "\"")
 	cmd := exec.Command("iptables", "-t", "mangle", "-A", "PREROUTING", "-d", "192.168.252.3", "-p", "udp", "--dport", "2152", "-m", "u32", "--u32", m32Rule, "-j", "MARK", "--set-mark", mark)
 	combinedOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Error executing command: %v\nCombined Output: %s", cmd.String(), combinedOutput)
-
+		return err
 	}
 	log.Traceln("iptables rule applied successfully for ip : ", ueip)
 	return nil
