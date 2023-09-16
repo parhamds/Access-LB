@@ -155,7 +155,7 @@ func execAddRule(gwip, ueip string) error {
 	cmd := exec.Command("iptables", "-t", "mangle", "-A", "PREROUTING", "-d", "192.168.252.3", "-p", "udp", "--dport", "2152", "-m", "u32", "--u32", m32Rule, "-j", "MARK", "--set-mark", mark)
 	err = cmd.Run()
 	if err != nil {
-		log.Errorf("Error executing command: %v", err)
+		log.Errorf("Error executing command: %v", cmd.String())
 		return err
 	}
 	log.Traceln("iptables rule applied successfully for ip : ", ueip)
