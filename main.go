@@ -22,14 +22,20 @@ type RegisterReq struct {
 	GwIP    string `json:"gwip"`
 	CoreMac string `json:"coremac"`
 }
+type operation int
 
-var addedRule map[string]struct{}
+const (
+	add operation = iota
+	del
+)
+
+var addedRule map[string]string
 var registeredUPFs map[string]string // [gwip] coremac
 
 func main() {
 	log.SetLevel(log.TraceLevel)
 	log.Traceln("application started")
-	addedRule = make(map[string]struct{})
+	addedRule = make(map[string]string)
 	registeredUPFs = make(map[string]string)
 	http.HandleFunc("/addrule", addRuleHandler)
 	http.HandleFunc("/register", registerHandler)
@@ -62,15 +68,30 @@ func addRuleHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, i := range rulereq.Ip {
 			added := false
-			_, added = addedRule[i]
+			gwip, added := addedRule[i]
 			if !added {
-				err = execAddRule(rulereq.GwIP, i)
+				err = execRule(rulereq.GwIP, i, add)
 				if err != nil {
 					sendHTTPResp(http.StatusInternalServerError, w)
 					return
 				}
-				addedRule[i] = struct{}{}
+				addedRule[i] = rulereq.GwIP
+				continue
 			}
+			if rulereq.GwIP != gwip {
+				err = execRule(gwip, i, del)
+				if err != nil {
+					sendHTTPResp(http.StatusInternalServerError, w)
+					return
+				}
+				err = execRule(rulereq.GwIP, i, add)
+				if err != nil {
+					sendHTTPResp(http.StatusInternalServerError, w)
+					return
+				}
+				addedRule[i] = rulereq.GwIP
+			}
+
 		}
 		if err != nil {
 			sendHTTPResp(http.StatusInternalServerError, w)
@@ -115,12 +136,14 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			log.Errorln("Json unmarshal failed for http request")
 			sendHTTPResp(http.StatusBadRequest, w)
 		}
-		registeredUPFs[regReq.GwIP] = regReq.CoreMac
-		if err != nil {
-			sendHTTPResp(http.StatusInternalServerError, w)
+		if regUPFCore, ok := registeredUPFs[regReq.GwIP]; ok && regUPFCore == regReq.CoreMac {
+			sendHTTPResp(http.StatusCreated, w)
 			return
 		}
+		registeredUPFs[regReq.GwIP] = regReq.CoreMac
 		sendHTTPResp(http.StatusCreated, w)
+		return
+
 	default:
 		log.Traceln(w, "Sorry, only PUT and POST methods are supported.")
 		sendHTTPResp(http.StatusMethodNotAllowed, w)
@@ -145,14 +168,21 @@ func decimalToHex(ipString string) (string, error) {
 	return strings.Join(hexParts, ""), nil
 }
 
-func execAddRule(gwip, ueip string) error {
+func execRule(gwip, ueip string, op operation) error {
 	mark := markFromIP(gwip)
 	hexIP, err := decimalToHex(ueip)
 	if err != nil {
 		return err
 	}
+	var oper string
+	switch op {
+	case add:
+		oper = "-A"
+	case del:
+		oper = "-D"
+	}
 	m32Rule := fmt.Sprint(`56&0xffffffff=0x`, hexIP, ``)
-	cmd := exec.Command("iptables", "-t", "mangle", "-A", "PREROUTING", "-d", "192.168.252.3", "-p", "udp", "--dport", "2152", "-m", "u32", "--u32", m32Rule, "-j", "MARK", "--set-mark", mark)
+	cmd := exec.Command("iptables", "-t", "mangle", oper, "PREROUTING", "-d", "192.168.252.3", "-p", "udp", "--dport", "2152", "-m", "u32", "--u32", m32Rule, "-j", "MARK", "--set-mark", mark)
 	combinedOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Error executing command: %v\nCombined Output: %s", cmd.String(), combinedOutput)
