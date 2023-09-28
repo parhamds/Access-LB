@@ -244,7 +244,7 @@ func sendGWMac(ifname, hostname, gwIP string) {
 	fmt.Println("GWRegisterReq = ", GWRegisterReq)
 	registerReqJson, _ := json.Marshal(GWRegisterReq)
 
-	requestURL := fmt.Sprintf("http://%v-http:8082/registergw", hostname)
+	requestURL := fmt.Sprintf("http://%v-http:8080/registergw", hostname)
 
 	jsonBody := []byte(registerReqJson)
 
