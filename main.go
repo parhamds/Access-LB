@@ -203,9 +203,10 @@ func getifaceName(gwIp string) string {
 		fmt.Printf("Error running ip command: %v\n", err)
 		return ""
 	}
-
+	lines := strings.Split(string(output), "\n")
 	// Parse the route information to extract the gateway IP address
-	iface := string(output)
+	fmt.Println("lines", lines)
+	iface := lines[0]
 	fmt.Println(iface)
 	return iface
 
