@@ -147,7 +147,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			log.Errorln("Json unmarshal failed for http request")
 			sendHTTPResp(http.StatusBadRequest, w)
 		}
-		fmt.Println("regReq = ", regReq)
+
 		if regUPFCore, ok := registeredUPFs[regReq.GwIP]; ok && regUPFCore == regReq.CoreMac {
 			sendHTTPResp(http.StatusCreated, w)
 			return
@@ -182,7 +182,7 @@ func execArp(gwIp, mac string, iface string, arpExists bool) error {
 			fmt.Printf("Error executing command: %v\nCombined Output: %s", cmd.String(), combinedOutput)
 			return err
 		}
-		log.Traceln("static arp deleted successfully for ip : ", gwIp)
+		log.Traceln("static arp deleted successfully for iface : ", iface)
 	}
 	cmd = exec.Command("arp", "-s", "192.168.252.3", mac, "-i", iface)
 	combinedOutput, err := cmd.CombinedOutput()
@@ -191,13 +191,13 @@ func execArp(gwIp, mac string, iface string, arpExists bool) error {
 		return err
 	}
 
-	log.Traceln("static arp applied successfully for ip : ", gwIp)
+	log.Traceln("static arp applied successfully for iface : ", iface)
 	return nil
 }
 
 func getifaceName(gwIp string) string {
 	cmd := exec.Command("sh", "-c", "ifconfig | grep -B1 "+gwIp+" | head -n1 | awk '{print $1;}'")
-	fmt.Println(cmd.String())
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Error running ip command: %v\n", err)
@@ -205,9 +205,9 @@ func getifaceName(gwIp string) string {
 	}
 	lines := strings.Split(string(output), "\n")
 	// Parse the route information to extract the gateway IP address
-	fmt.Println("lines", lines)
+
 	iface := lines[0]
-	fmt.Println(iface)
+
 	return iface
 
 }
@@ -238,10 +238,10 @@ func GetMac(ifname string) string {
 func sendGWMac(ifname, hostname, gwIP string) {
 	gwMac := GetMac(ifname)
 	GWRegisterReq := GWRegisterReq{
-		GwIP:  gwIP,
+		GwIP:  gwIP, //access gw
 		GwMac: gwMac,
 	}
-	fmt.Println("GWRegisterReq = ", GWRegisterReq)
+
 	registerReqJson, _ := json.Marshal(GWRegisterReq)
 
 	requestURL := fmt.Sprintf("http://%v-http:8080/registergw", hostname)
@@ -266,6 +266,7 @@ func sendGWMac(ifname, hostname, gwIP string) {
 			log.Errorf("client: error making http request: %s\n", err)
 		} else if resp.StatusCode == http.StatusCreated {
 			done = true
+			log.Traceln("access mac Successfuly registered in host : ", hostname)
 			return
 		}
 		time.Sleep(1 * time.Second)
