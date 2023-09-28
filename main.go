@@ -176,7 +176,7 @@ func execArp(gwIp, mac string, iface string, arpExists bool) error {
 	var cmd *exec.Cmd
 
 	if arpExists == true {
-		cmd = exec.Command("arp", "-d", gwIp, "-i", iface)
+		cmd = exec.Command("arp", "-d", "192.168.252.3", "-i", iface)
 		combinedOutput, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Printf("Error executing command: %v\nCombined Output: %s", cmd.String(), combinedOutput)
@@ -184,7 +184,7 @@ func execArp(gwIp, mac string, iface string, arpExists bool) error {
 		}
 		log.Traceln("static arp deleted successfully for ip : ", gwIp)
 	}
-	cmd = exec.Command("arp", "-s", gwIp, mac, "-i", iface)
+	cmd = exec.Command("arp", "-s", "192.168.252.3", mac, "-i", iface)
 	combinedOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Error executing command: %v\nCombined Output: %s", cmd.String(), combinedOutput)
