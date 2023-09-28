@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -19,9 +22,17 @@ type RuleReq struct {
 }
 
 type RegisterReq struct {
-	GwIP    string `json:"gwip"`
-	CoreMac string `json:"coremac"`
+	GwIP      string `json:"gwip"`
+	CoreMac   string `json:"coremac"`
+	AccessMac string `json:"accessmac"`
+	Hostname  string `json:"hostname"`
 }
+
+type GWRegisterReq struct {
+	GwIP  string `json:"gwip"`
+	GwMac string `json:"gwmac"`
+}
+
 type operation int
 
 const (
@@ -136,10 +147,18 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			log.Errorln("Json unmarshal failed for http request")
 			sendHTTPResp(http.StatusBadRequest, w)
 		}
+		fmt.Println("regReq = ", regReq)
 		if regUPFCore, ok := registeredUPFs[regReq.GwIP]; ok && regUPFCore == regReq.CoreMac {
 			sendHTTPResp(http.StatusCreated, w)
 			return
 		}
+		var arpExists bool
+		if _, ok := registeredUPFs[regReq.GwIP]; ok {
+			arpExists = true
+		}
+		iface := getifaceName(regReq.GwIP)
+		execArp(regReq.GwIP, regReq.AccessMac, iface, arpExists)
+		go sendGWMac(iface, regReq.Hostname, regReq.GwIP)
 		registeredUPFs[regReq.GwIP] = regReq.CoreMac
 		sendHTTPResp(http.StatusCreated, w)
 		return
@@ -148,6 +167,105 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		log.Traceln(w, "Sorry, only PUT and POST methods are supported.")
 		sendHTTPResp(http.StatusMethodNotAllowed, w)
 	}
+}
+
+func execArp(gwIp, mac string, iface string, arpExists bool) error {
+
+	var cmd *exec.Cmd
+
+	if arpExists == true {
+		cmd = exec.Command("arp", "-d", gwIp, "-i", iface)
+		combinedOutput, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Error executing command: %v\nCombined Output: %s", cmd.String(), combinedOutput)
+			return err
+		}
+		log.Traceln("static arp deleted successfully for ip : ", gwIp)
+	}
+	cmd = exec.Command("arp", "-s", gwIp, mac, "-i", iface)
+	combinedOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error executing command: %v\nCombined Output: %s", cmd.String(), combinedOutput)
+		return err
+	}
+
+	log.Traceln("static arp applied successfully for ip : ", gwIp)
+	return nil
+}
+
+func getifaceName(gwIp string) string {
+	cmd := exec.Command("ifconfig", "|", "-B1", gwIp, "|", "head", "-n1", "awk", "'{print $1;}'")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running ip command: %v\n", err)
+		return ""
+	}
+
+	// Parse the route information to extract the gateway IP address
+	iface := string(output)
+	return iface
+
+}
+func GetMac(ifname string) string {
+
+	// Get the list of network interfaces.
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return ""
+	}
+
+	// Find the interface with the specified name.
+	var targetInterface net.Interface
+	for _, iface := range ifaces {
+		if iface.Name == ifname {
+			targetInterface = iface
+			break
+		}
+	}
+
+	if targetInterface.Name == "" {
+		return ""
+	}
+
+	return targetInterface.HardwareAddr.String()
+}
+func sendGWMac(ifname, hostname, gwIP string) {
+	gwMac := GetMac(ifname)
+	GWRegisterReq := GWRegisterReq{
+		GwIP:  gwIP,
+		GwMac: gwMac,
+	}
+	fmt.Println("GWRegisterReq = ", GWRegisterReq)
+	registerReqJson, _ := json.Marshal(GWRegisterReq)
+
+	requestURL := fmt.Sprintf("http://%v:8080/registergw", hostname)
+
+	jsonBody := []byte(registerReqJson)
+
+	bodyReader := bytes.NewReader(jsonBody)
+	req, err := http.NewRequest(http.MethodPost, requestURL, bodyReader)
+	if err != nil {
+		log.Errorf("client: could not create request: %s\n", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := http.Client{
+		Timeout: 10 * time.Second,
+	}
+	done := false
+	for !done {
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Errorf("client: error making http request: %s\n", err)
+		} else if resp.StatusCode == http.StatusCreated {
+			done = true
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+
 }
 
 func decimalToHex(ipString string) (string, error) {
