@@ -196,7 +196,7 @@ func execArp(gwIp, mac string, iface string, arpExists bool) error {
 }
 
 func getifaceName(gwIp string) string {
-	cmd := exec.Command("ifconfig", "|", "grep", "-B1", gwIp, "|", "head", "-n1", "awk", "'{print $1;}'")
+	cmd := exec.Command("ifconfig", "|", "grep", "-B1", gwIp, "|", "head", "-n1", "|", "awk", "'{print $1;}'")
 	fmt.Println(cmd.String())
 	output, err := cmd.CombinedOutput()
 	if err != nil {
