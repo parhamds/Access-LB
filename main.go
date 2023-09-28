@@ -160,7 +160,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		accessGW := fmt.Sprint("192.168.252.", mark)
 		iface := getifaceName(accessGW)
 		execArp(regReq.GwIP, regReq.AccessMac, iface, arpExists)
-		go sendGWMac(iface, regReq.Hostname, regReq.GwIP)
+		go sendGWMac(iface, regReq.Hostname, accessGW)
 		registeredUPFs[regReq.GwIP] = regReq.CoreMac
 		sendHTTPResp(http.StatusCreated, w)
 		return
