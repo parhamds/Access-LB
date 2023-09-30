@@ -90,19 +90,18 @@ func addRuleHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if rulereq.GwIP != gwip {
-				err = execRule(gwip, i, del)
+				err = execRule(rulereq.GwIP, i, add)
 				if err != nil {
 					sendHTTPResp(http.StatusInternalServerError, w)
 					return
 				}
-				err = execRule(rulereq.GwIP, i, add)
+				err = execRule(gwip, i, del)
 				if err != nil {
 					sendHTTPResp(http.StatusInternalServerError, w)
 					return
 				}
 				addedRule[i] = rulereq.GwIP
 			}
-
 		}
 		if err != nil {
 			sendHTTPResp(http.StatusInternalServerError, w)
