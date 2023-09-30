@@ -151,14 +151,11 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			sendHTTPResp(http.StatusCreated, w)
 			return
 		}
-		var arpExists bool
-		if _, ok := registeredUPFs[regReq.GwIP]; ok {
-			arpExists = true
-		}
+
 		mark := markFromIP(regReq.GwIP)
 		accessGW := fmt.Sprint("192.168.252.", mark)
 		iface := getifaceName(accessGW)
-		execArp(regReq.GwIP, regReq.AccessMac, iface, arpExists)
+		execArp(regReq.GwIP, regReq.AccessMac, iface)
 		go sendGWMac(iface, regReq.Hostname, accessGW)
 		registeredUPFs[regReq.GwIP] = regReq.CoreMac
 		sendHTTPResp(http.StatusCreated, w)
@@ -170,19 +167,10 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func execArp(gwIp, mac string, iface string, arpExists bool) error {
+func execArp(gwIp, mac string, iface string) error {
 
 	var cmd *exec.Cmd
 
-	if arpExists == true {
-		cmd = exec.Command("arp", "-d", "192.168.252.3", "-i", iface)
-		combinedOutput, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Printf("Error executing command: %v\nCombined Output: %s", cmd.String(), combinedOutput)
-			return err
-		}
-		log.Traceln("static arp deleted successfully for iface : ", iface)
-	}
 	cmd = exec.Command("arp", "-s", "192.168.252.3", mac, "-i", iface)
 	combinedOutput, err := cmd.CombinedOutput()
 	if err != nil {
